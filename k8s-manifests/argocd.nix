@@ -1,21 +1,16 @@
-# ArgoCD — GitOps controller.
+# ArgoCD — k8s-manifests factory.
 #
-# Provides the core application controller, repo server, and UI.
-# All other applications are managed as ArgoCD Applications so
-# ArgoCD is the first thing deployed on a fresh cluster.
+# Returns a nixidy module that configures ArgoCD.
+# Called with cluster context: { domain, networks, name, ... }
 #
-# Bootstrap: `nixidy bootstrap .#prod | kubectl apply -f -`
-{
-  lib,
-  config,
-  charts,
-  ...
-}:
+# This is the k8s-manifests quirk for den.aspects.argocd.
+# Cluster context is passed by the nixidy env assembler
+# (modules/flake/nixidy.nix) from den.clusters.<name>.
+{ cluster, ... }:
 let
-  namespace = "argocd";
-
-  domain = "argocd.${config.networking.domain}";
+  domain = "argocd.${cluster.domain}";
 in
+{ config, charts, lib, ... }:
 {
   options.services.argocd = with lib; {
     enable = mkOption {
@@ -31,7 +26,7 @@ in
 
   config = lib.mkIf config.services.argocd.enable {
     applications.argocd = {
-      inherit namespace;
+      namespace = "argocd";
 
       helm.releases.argocd = {
         chart = charts.argoproj.argo-cd;
@@ -97,5 +92,7 @@ in
         };
       };
     };
+
+    networking.domain = cluster.domain;
   };
 }
