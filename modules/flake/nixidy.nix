@@ -1,6 +1,11 @@
 # nixidy environment definitions per cluster.
-# Each cluster gets its own nixidy environment built from
-# shared app modules + a per-cluster config file.
+#
+# Each cluster gets its own nixidy environment built from:
+#   1. Shared nixidy app modules (apps/)
+#   2. Cluster config (clusters/<name>.nix)
+#
+# Cluster context (domain, networks, storage) flows into app modules
+# via nixidy module options (config.cluster.*) defined in clusters/.
 { inputs, config, self, ... }:
 let
   clusterNames = [ "prod" ];
