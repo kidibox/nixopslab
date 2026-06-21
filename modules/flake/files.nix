@@ -18,7 +18,7 @@ let
               in
               if type == "directory" || (type == "symlink" && builtins.pathExists (full + "/.")) then
                 go full
-              else if type == "regular" then
+              else if type == "regular" || type == "symlink" then
                 [ full ]
               else
                 []
