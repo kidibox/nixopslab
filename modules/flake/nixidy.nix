@@ -4,53 +4,34 @@
 # per system. Cluster context flows from den.clusters into nixidy modules
 # via the `cluster` specialArg.
 #
-# k8s-manifests factories are registered in config.k8s.manifests (a plain
-# flake-parts option) and selected per-cluster by the cluster's aspect
-# includes chain (den.aspects.<clusterName>.includes).
-#
-# The aspect includes chain walks den.aspects entries to find which
-# k8s-manifests factories to include for each cluster. Factory files
-# export curried functions:
-#   { cluster, ... }: { config, charts, lib, ... }: { ... }
+# k8s-manifests modules are collected from the cluster's aspect tree
+# using den.lib.aspects.resolve — den's scope engine walks the includes
+# chain and collects all class content matching "k8s-manifests".
 #
 # Data flow:
 #   den.clusters.<name>  →  extraSpecialArgs.cluster  →  config.cluster.*
-#   den.aspects.<name>   →  includes chain  →  k8s.manifests  →  nixidy modules
-{ inputs, config, self, lib, ... }:
+#   den.aspects.<name>   →  den.lib.aspects.resolve  →  collected nixidy modules
+{ inputs, config, self, lib, den, ... }:
 let
   clusterNames = builtins.attrNames config.den.clusters;
 
-  # Walk a den aspect's includes chain depth-first to collect
-  # k8s-manifests factory names. Returns a list of attribute names
-  # from config.k8s.manifests that should be included for this cluster.
-  collectAspectNames =
-    seen: aspect:
+  # Collect k8s-manifests modules for a cluster via den's pipeline.
+  # Walks the cluster's aspect includes tree depth-first, finds all
+  # aspects declaring k8s-manifests content, and returns the merged
+  # nixidy module list.
+  k8sManifestsFor = clusterName:
     let
-      name = aspect.name or "";
-    in
-    if name != "" && seen ? ${name} then [ ]
-    else
-      let
-        seen' = seen // lib.optionalAttrs (name != "") { ${name} = true; };
-        # Check if this aspect has a k8s-manifests factory registered
-        own = if config.k8s.manifests ? ${name} then [ name ] else [ ];
-        # Recurse into includes
-        fromIncludes = builtins.concatMap (collectAspectNames seen') (aspect.includes or [ ]);
-      in
-      own ++ fromIncludes;
-
-  # Build the nixidy module list for a cluster.
-  # Base modules + k8s-manifests factories called with cluster context.
-  mkClusterModules = clusterName:
-    let
-      cluster = config.den.clusters.${clusterName};
       clusterAspect = config.den.aspects.${clusterName} or null;
-      aspectNames = if clusterAspect != null then collectAspectNames {} clusterAspect else [];
-      # Import each factory file and call the outer function with cluster context
-      ctx = { inherit (cluster) domain networks; name = clusterName; inherit (cluster.nixidy) repository branch rootPath; };
-      calledManifests = map (name: (import config.k8s.manifests.${name}) { cluster = ctx; }) aspectNames;
     in
-    [ "${self}/apps" "${self}/clusters/${clusterName}.nix" ] ++ calledManifests;
+    if clusterAspect != null then
+      (den.lib.aspects.resolve "k8s-manifests" clusterAspect).imports or [ ]
+    else
+      [ ];
+
+  # Build the complete nixidy module list for a cluster:
+  # base modules + collected k8s-manifests modules from den aspects.
+  mkClusterModules = clusterName:
+    [ "${self}/apps" "${self}/clusters/${clusterName}.nix" ] ++ k8sManifestsFor clusterName;
 in
 {
   flake.nixidyEnvs = builtins.listToAttrs (

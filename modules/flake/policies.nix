@@ -2,16 +2,15 @@
 #
 # Defines policy wiring for den cluster entities:
 # - cluster-aspect: auto-includes the entity-named aspect for each cluster
-#   (so den.aspects.argocd is included for a cluster with argocd aspect)
+#   (so den.aspects.prod is auto-included for cluster prod)
 #
-# Future policies (when den's pipeline is integrated):
-# - cluster-to-nixidy: collect k8s-manifests quirks from resolved aspects
-#   and build per-cluster nixidy environments
+# nixidy module collection uses den.lib.aspects.resolve in
+# modules/flake/nixidy.nix — den's scope engine walks the aspect
+# includes chain and collects k8s-manifests class content.
+#
+# Future when den's full pipeline (instantiate, policy dispatch) is wired:
+# - cluster-to-nixidy: use den.lib.policy.instantiate with class k8s-manifests
 # - env-to-clusters: resolve clusters into environment scope branches
-#
-# Currently, nixidy env assembly is done directly in modules/flake/nixidy.nix
-# rather than through den's policy/instantiate pipeline, because the full
-# pipeline requires den's scope walking and resolution engine.
 { lib, den, ... }:
 let
   inherit (den.lib.policy) resolve include;

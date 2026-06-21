@@ -1,22 +1,12 @@
-# k8s-manifests registry for nixidy.
+# k8s-manifests den class declaration.
 #
-# Registers k8s-manifests factory paths as a flake-parts option.
-# Each factory file exports a curried function:
-#   { cluster, ... }: { config, charts, lib, ... }: { ... }
-#
-# This is separate from den.aspects because den's aspectContentType
-# wraps freeform keys in __contentValues/__functor, making it
-# impossible to store paths or curried functions directly.
-#
-# Corresponds to den.classes.k8s-manifests — aspects that declare
-# k8s-manifests register their factory here.
+# Registers "k8s-manifests" as a den class so the pipeline recognizes
+# it as a class key on aspects. The den pipeline's scope engine collects
+# k8s-manifests class content when walking aspect includes chains, and
+# delivers them to the nixidy environment assembler.
 { lib, ... }:
 {
-  options.k8s = {
-    manifests = lib.mkOption {
-      type = lib.types.attrsOf lib.types.path;
-      default = { };
-      description = "k8s-manifests factory paths, keyed by aspect name. Each file is imported and called with cluster context.";
-    };
+  config.den.classes.k8s-manifests = {
+    description = "Kubernetes manifest nixidy modules — collected via den's pipeline";
   };
 }
