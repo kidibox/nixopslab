@@ -1,14 +1,18 @@
-# nixidy environment definitions per cluster.
+# Nixidy environment assembly from den cluster entities.
 #
-# Each cluster gets its own nixidy environment built from:
+# Iterates over den.clusters to build one nixidy environment per cluster
+# per system. Cluster context (domain, networks, nixidy target, storage)
+# flows from den.clusters into nixidy modules via the `cluster`
+# specialArg, which is then set as config.cluster in the cluster config
+# module (clusters/<name>.nix).
+#
+# Each nixidy env includes:
 #   1. Shared nixidy app modules (apps/)
-#   2. Cluster config (clusters/<name>.nix)
-#
-# Cluster context (domain, networks, storage) flows into app modules
-# via nixidy module options (config.cluster.*) defined in clusters/.
+#   2. Cluster config module (clusters/<name>.nix) — reads cluster
+#     specialArg, sets nixidy.target and networking.domain
 { inputs, config, self, ... }:
 let
-  clusterNames = [ "prod" ];
+  clusterNames = builtins.attrNames config.den.clusters;
 in
 {
   flake.nixidyEnvs = builtins.listToAttrs (
@@ -24,6 +28,9 @@ in
               "${self}/apps"
               "${self}/clusters/${clusterName}.nix"
             ];
+            extraSpecialArgs = {
+              cluster = config.den.clusters.${clusterName};
+            };
           };
         }) clusterNames
       );

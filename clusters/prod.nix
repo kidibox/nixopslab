@@ -1,56 +1,45 @@
 # Cluster configuration for the production environment.
 #
-# This module defines cluster-wide settings that flow into every
-# nixidy application module via the `cluster` option.
+# This nixidy module reads cluster context from the `cluster` specialArg
+# (populated from den.clusters.prod) and sets nixidy.target, networking,
+# and cluster options accordingly.
 #
-# Application modules read `config.cluster.*` to avoid hardcoding
-# domain names, network CIDRs, storage backends, etc.
-{ lib, config, ... }:
+# Application modules read `config.cluster.*` and `config.networking.domain`
+# to avoid hardcoding domain names, network CIDRs, etc.
+{ lib, cluster, ... }:
 {
   options.cluster = with lib; {
     domain = mkOption {
       type = types.str;
-      default = "home.arpa";
-      description = "Base domain for this cluster";
+      description = "Base domain for this cluster (from den.clusters)";
     };
 
     networks = {
       podCIDR = mkOption {
         type = types.str;
-        default = "10.42.0.0/16";
-        description = "Pod CIDR (k3s default)";
+        description = "Pod CIDR";
       };
 
       serviceCIDR = mkOption {
         type = types.str;
-        default = "10.43.0.0/16";
-        description = "Service CIDR (k3s default)";
-      };
-    };
-
-    storage = {
-      nfs = {
-        server = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "NFS server address for CSI driver";
-        };
-
-        share = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "NFS share path";
-        };
+        description = "Service CIDR";
       };
     };
   };
 
   config = {
+    cluster = {
+      inherit (cluster) domain;
+
+      networks = {
+        podCIDR = cluster.networks.pods.cidr;
+        serviceCIDR = cluster.networks.services.cidr;
+      };
+    };
+
     nixidy = {
       target = {
-        repository = "https://github.com/kid/nixopslab.git";
-        branch = "main";
-        rootPath = "manifests/prod";
+        inherit (cluster.nixidy) repository branch rootPath;
       };
 
       extraFiles."README.md".text = ''
@@ -79,6 +68,6 @@
       };
     };
 
-    networking.domain = config.cluster.domain;
+    networking.domain = cluster.domain;
   };
 }
