@@ -1,6 +1,6 @@
 # nixopslab
 
-Kubernetes cluster manifests managed with [nixidy](https://nixidy.dev/), using [den](https://den.denful.dev/) for the module system and [sini/files](https://github.com/sini/files) for declarative manifest sync.
+Kubernetes cluster manifests managed with [nixidy](https://nixidy.dev/), using [den](https://den.denful.dev/) for entities/aspects, [flake-file](https://github.com/sini/flake-file) for flake generation, and [sini/files](https://github.com/sini/files) for declarative manifest sync.
 
 ## Structure
 
@@ -14,18 +14,35 @@ Kubernetes cluster manifests managed with [nixidy](https://nixidy.dev/), using [
 │   │   ├── core.nix         # Imports den, files, flake-file (dendritic)
 │   │   ├── devshell.nix     # nixidy CLI + dev shell
 │   │   ├── files.nix        # Walks nixidy envPkg, registers manifests as sini/files entries
-│   │   ├── inputs.nix       # flake-file input declarations
-│   │   └── nixidy.nix       # Per-cluster nixidy environment definitions
-│   └── argocd/              # den aspect: k8s-manifests class declaration
+│   │   ├── inputs.nix       # flake-file declarative input definitions
+│   │   ├── nixidy.nix       # Builds nixidy envs from den.clusters, passes cluster specialArg
+│   │   └── clusters.nix     # den.schema.cluster.isEntity + den.clusters option type
+│   ├── argocd/              # den aspect: k8s-manifests class + service-domains quirk
+│   └── entities/            # den cluster entity instances
+│       └── prod.nix         # Production cluster (domain, networks, nixidy target, storage)
 ├── apps/                    # nixidy application modules (imported explicitly)
 │   ├── default.nix          # Shared options (networking.domain) + imports
 │   └── argocd/              # ArgoCD application
 │       └── default.nix
-├── clusters/               # Per-cluster nixidy configuration
-│   └── prod.nix            # Production: target repo, domain, networks
+├── clusters/               # Per-cluster nixidy config modules
+│   └── prod.nix            # Reads cluster context from den.clusters via specialArg
 └── manifests/               # Generated output (committed for Argo CD)
     └── prod/
 ```
+
+## Data flow
+
+```
+den.clusters.prod (entity)  ──→  extraSpecialArgs.cluster  ──→  config.cluster.* in nixidy modules
+       │                                                              │
+       ├── domain                                                    ├── argocd app reads config.cluster.domain
+       ├── networks.pods.cidr                                        └── apps/default.nix sets networking.domain
+       ├── networks.services.cidr
+       ├── nixidy.{repository,branch,rootPath}
+       └── storage
+```
+
+Clusters are den entities (`den.schema.cluster.isEntity = true`). The single source of truth is `den.clusters.<name>` in `modules/flake/entities/`. The nixidy module (`modules/flake/nixidy.nix`) iterates over `den.clusters` to build one nixidy environment per cluster, passing each entity as the `cluster` specialArg.
 
 ## Commands
 
@@ -38,24 +55,24 @@ Kubernetes cluster manifests managed with [nixidy](https://nixidy.dev/), using [
 
 ## Adding a new cluster
 
-1. Create `clusters/<name>.nix` — set `nixidy.target.*`, `cluster.domain`, etc.
-2. Add the name to `clusterNames` in `modules/flake/nixidy.nix`.
-3. Add the same cluster data to `modules/flake/clusters.nix` (den entity).
-4. Run `nix run .#write-files` and commit.
+1. Create `modules/flake/entities/<name>.nix` — register the cluster in `den.clusters.<name>` with domain, networks, nixidy target, etc.
+2. Create `clusters/<name>.nix` — nixidy module that reads the `cluster` specialArg and sets `config.cluster.*`, `config.nixidy.target`, `config.networking.domain`.
+3. Run `nix run .#write-files` and commit.
 
 ## Adding a new application
 
 1. Create `apps/<app>/default.nix` — define nixidy `applications.<app>` and `options.services.<app>`.
 2. Import it in `apps/default.nix`.
-3. (Optional) Create `modules/<app>/default.nix` — declare `den.classes.k8s-manifests` for the aspect class.
+3. (Optional) Create `modules/<app>/default.nix` — declare `den.aspects.<app>` with metadata quirks (service-domains, etc.) and `den.classes.k8s-manifests`.
 4. Run `nix run .#write-files` and commit.
 
 ## Design
 
-- **Den + import-tree**: modules under `modules/` are auto-discovered. Add a `.nix` file and it's picked up.
+- **Den entities**: Clusters are `den.clusters.<name>` with `den.schema.cluster.isEntity = true`. Ready for den's policy engine to route aspects per-cluster.
+- **Den aspects**: `den.classes.k8s-manifests` declares the class. `den.aspects.argocd` carries metadata like `service-domains`. Future: full k8s-manifests quirk emission via den's pipeline.
+- **Cluster context**: Flows from `den.clusters` → `extraSpecialArgs.cluster` → nixidy module options `config.cluster.*`. Single source of truth.
 - **flake-file (dendritic)**: `flake.nix` is auto-generated. Edit `flake-file.nix` or `modules/flake/inputs.nix`, then regenerate.
-- **sini/files**: manifests are declared as file entries. `nix run .#write-files` updates them; `nix flake check` verifies sync.
-- **Cluster context**: flows through nixidy module options. `clusters/prod.nix` defines `options.cluster.*`; app modules read `config.cluster.domain` etc.
-- **den.classes.k8s-manifests**: aspect class identifier for k8s manifest modules. Ready for future den policy-engine integration.
+- **sini/files**: Manifests declared as file entries. `nix run .#write-files` updates them; `nix flake check` verifies sync.
+- **import-tree**: modules under `modules/` are auto-discovered. Prefix with `_` to exclude.
 - **One nixidy env per cluster**: `clusters/<name>.nix` configures target repo/branch/path.
-- **Helm via nixhelm**: all charts pinned in flake lock for reproducibility.
+- **Helm via nixhelm**: All charts pinned in flake lock for reproducibility.
