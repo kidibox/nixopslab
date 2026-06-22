@@ -45,6 +45,7 @@
   # with includes listing the k8s service aspects.
   den.aspects.prod = {
     includes = with den.aspects; [
+      nixidy
       argocd
     ];
   };

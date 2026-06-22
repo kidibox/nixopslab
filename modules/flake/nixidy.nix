@@ -4,21 +4,22 @@
 # per system. Cluster context flows from den.clusters into nixidy modules
 # via the `cluster` specialArg.
 #
-# k8s-manifests modules are collected from the cluster's aspect tree
-# using den.lib.aspects.resolve — den's scope engine walks the includes
-# chain and collects all class content matching "k8s-manifests".
+# All nixidy modules are collected from the cluster's aspect tree using
+# den.lib.aspects.resolve — den's scope engine walks the includes chain
+# and collects all k8s-manifests class content. This includes both the
+# base module (from den.aspects.nixidy) and application modules (from
+# aspects like argocd, cilium, etc.).
 #
-# Data flow:
-#   den.clusters.<name>  →  extraSpecialArgs.cluster  →  config.cluster.*
-#   den.aspects.<name>   →  den.lib.aspects.resolve  →  collected nixidy modules
-{ inputs, config, self, lib, den, ... }:
+# The only code here that is not aspect-sourced is the cluster bridge:
+# it maps den.clusters.<name> data into nixidy's config (config.cluster,
+# config.nixidy.target, config.networking.domain). This bridge is the
+# essential seam where den entity data enters the nixidy module system.
+{ inputs, config, lib, den, ... }:
 let
   clusterNames = builtins.attrNames config.den.clusters;
 
-  # Collect k8s-manifests modules for a cluster via den's pipeline.
-  # Walks the cluster's aspect includes tree depth-first, finds all
-  # aspects declaring k8s-manifests content, and returns the merged
-  # nixidy module list.
+  # Collect all k8s-manifests modules for a cluster via den's pipeline.
+  # Walks the cluster's aspect includes tree depth-first.
   k8sManifestsFor = clusterName:
     let
       clusterAspect = config.den.aspects.${clusterName} or null;
@@ -28,10 +29,31 @@ let
     else
       [ ];
 
-  # Build the complete nixidy module list for a cluster:
-  # base modules + collected k8s-manifests modules from den aspects.
-  mkClusterModules = clusterName:
-    [ "${self}/apps" "${self}/clusters/${clusterName}.nix" ] ++ k8sManifestsFor clusterName;
+  # Bridge module: maps den.clusters.<name> into nixidy's module config.
+  # This is the only non-aspect module — it feeds cluster-specific data
+  # (domain, networks, nixidy target) from den's entity registry into
+  # the nixidy module system where aspects can read config.cluster.*.
+  clusterBridge = clusterName:
+    let
+      c = config.den.clusters.${clusterName};
+    in
+    { lib, ... }: {
+      config = {
+        cluster = {
+          inherit (c) domain;
+          networks = {
+            podCIDR = c.networks.pods.cidr;
+            serviceCIDR = c.networks.services.cidr;
+          };
+        };
+
+        nixidy.target = {
+          inherit (c.nixidy) repository branch rootPath;
+        };
+
+        networking.domain = c.domain;
+      };
+    };
 in
 {
   flake.nixidyEnvs = builtins.listToAttrs (
@@ -43,10 +65,9 @@ in
           value = inputs.nixidy.lib.mkEnv {
             pkgs = import inputs.nixpkgs { inherit system; };
             charts = inputs.nixhelm.chartsDerivations.${system};
-            modules = mkClusterModules clusterName;
-            extraSpecialArgs = {
-              cluster = config.den.clusters.${clusterName};
-            };
+            modules = [
+              (clusterBridge clusterName)
+            ] ++ k8sManifestsFor clusterName;
           };
         }) clusterNames
       );
