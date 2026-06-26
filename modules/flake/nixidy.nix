@@ -11,7 +11,7 @@
 #
 # Data flow:
 #   den.aspects.<name>.k8s-manifests  →  den.lib.aspects.resolve  →  mkEnv
-{ inputs, config, lib, den, ... }:
+{ inputs, config, lib, self, den, ... }:
 let
   clusterNames = builtins.attrNames config.den.clusters;
 
@@ -34,7 +34,7 @@ in
           name = clusterName;
           value = inputs.nixidy.lib.mkEnv {
             pkgs = import inputs.nixpkgs { inherit system; };
-            charts = inputs.nixhelm.chartsDerivations.${system};
+            charts = self.chartsDerivations.${system};
             modules = k8sManifestsFor clusterName;
           };
         }) clusterNames
