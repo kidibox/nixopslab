@@ -9,4 +9,7 @@
     inputs.files.flakeModule
     inputs.flake-file.flakeModules.dendritic
   ];
+
+  # Only evaluate on this platform — cross-compilation is not configured.
+  flake.systems = [ "x86_64-linux" ];
 }

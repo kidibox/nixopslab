@@ -1,149 +1,52 @@
-# sini/files integration: register nixidy manifest outputs as managed files.
-# nix run .#write-files    → write manifests declared in files.file
-# nix run .#diff-files     → preview what would change
-# nix run .#sync-manifests → write manifests + remove stale files
-# nix flake check          → verify manifests are in sync + no stale files
 { lib, self, ... }:
-let
-  # Recursively walk a derivation output, following symlinks.
-  # Returns a list of relative paths to all regular files.
-  walkDir = root:
-    let
-      go = dir:
-        builtins.concatLists (
-          builtins.attrValues (
-            builtins.mapAttrs (name: type:
-              let
-                full = "${dir}/${name}";
-              in
-              if type == "directory" || (type == "symlink" && builtins.pathExists (full + "/.")) then
-                go full
-              else if type == "regular" || type == "symlink" then
-                [ full ]
-              else
-                []
-            ) (builtins.readDir dir)
-          )
-        );
-      absPaths = go root;
-      prefixLen = builtins.stringLength (root + "/");
-    in
-    map (p: builtins.substring prefixLen (builtins.stringLength p) p) absPaths;
-in
 {
   perSystem =
     { system, pkgs, ... }:
     let
       envs = self.nixidyEnvs.${system};
-
-      # List of expected manifest file paths (relative to repo root) for this system.
-      # Used by sync-manifests to detect stale files and by the flake check
-      # to verify no extra files exist in manifests/.
-      expectedPaths = builtins.foldl' (acc: envName:
-        let
-          env = envs.${envName};
-          pkg = env.environmentPackage;
-          targetDir = builtins.unsafeDiscardStringContext env.config.nixidy.target.rootPath;
-        in
-        acc ++ (map (relPath: "${targetDir}/${relPath}") (walkDir pkg))
-      ) [] (builtins.attrNames envs);
-
-      # JSON file listing all expected manifest paths.
-      expectedPathsJson = pkgs.writeText "expected-manifests.json" (builtins.toJSON expectedPaths);
     in
     {
-      files.generateApp = true;
+      # One check for all manifests: diffs the entire nixidy environment package
+      # against committed manifests. Detects content drift and stale/missing files.
+      # nix flake show: no IFD — derivation hash is computable from store paths.
+      # nix flake check: builds env.environmentPackage (helm charts built here).
+      checks.manifests = pkgs.runCommandLocal "manifests-check"
+        { nativeBuildInputs = [ pkgs.diffutils ]; }
+        (lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (envName: env:
+            let
+              pkg = env.environmentPackage;
+              targetDir = builtins.unsafeDiscardStringContext env.config.nixidy.target.rootPath;
+            in
+            ''
+              if ! diff -rq "${self}/${targetDir}" "${pkg}"; then
+                echo "Manifests are stale for ${envName} — run: nix run .#write-manifests" >&2
+                exit 1
+              fi
+            ''
+          ) envs
+        ) + "\ntouch $out");
 
-      files.file =
-        builtins.foldl' (acc: envName:
-          let
-            env = envs.${envName};
-            pkg = env.environmentPackage;
-            targetDir = builtins.unsafeDiscardStringContext env.config.nixidy.target.rootPath;
-          in
-          acc // builtins.listToAttrs (
-            builtins.map
-              (relPath: {
-                name = builtins.unsafeDiscardStringContext "${targetDir}/${relPath}";
-                value.text = builtins.readFile "${pkg}/${relPath}";
-              })
-              (walkDir pkg)
-          )
-        ) {} (builtins.attrNames envs);
-
-      # sync-manifests: write manifests AND remove stale files from the repo.
-      apps.sync-manifests = {
+      # Write all nixidy manifests into the repo, replacing stale files.
+      apps.write-manifests = {
         type = "app";
         program = "${pkgs.writeShellApplication {
-          name = "sync-manifests";
-          runtimeInputs = [ pkgs.git pkgs.findutils pkgs.jq ];
-          text = ''
-            root="$(git rev-parse --show-toplevel)" || { echo "sync-manifests: not in a git repo" >&2; exit 1; }
-            cd "$root"
-
-            # Write all declared manifests (same as write-files)
-            echo "==> Writing manifests..."
-            nix run .#write-files
-
-            # Remove stale manifests: files under manifests/ not in the expected set
-            echo "==> Checking for stale manifests..."
-            removed=0
-            while IFS= read -r existing; do
-              rel="''${existing#"$root"/}"
-              if ! jq -e --arg path "$rel" '. | index($path)' ${expectedPathsJson} > /dev/null 2>&1; then
-                echo "  rm $rel"
-                rm "$existing"
-                removed=$((removed + 1))
-              fi
-            done < <(find "$root/manifests" -type f 2>/dev/null)
-
-            # Remove empty directories left behind
-            find "$root/manifests" -type d -empty -delete 2>/dev/null || true
-
-            if [ "$removed" -gt 0 ]; then
-              echo "==> Removed $removed stale manifest file(s)"
-            else
-              echo "==> No stale manifests found"
-            fi
-          '';
-        }}/bin/sync-manifests";
+          name = "write-manifests";
+          runtimeInputs = [ pkgs.rsync ];
+          text = lib.concatStringsSep "\n" (
+            lib.mapAttrsToList (envName: env:
+              let
+                pkg = env.environmentPackage;
+                targetDir = builtins.unsafeDiscardStringContext env.config.nixidy.target.rootPath;
+              in
+              ''
+                echo "==> Writing ${envName} manifests..."
+                mkdir -p "${targetDir}"
+                rsync -av --delete "${pkg}/" "${targetDir}/"
+              ''
+            ) envs
+          );
+        }}/bin/write-manifests";
       };
-
-      # Check that no stale files exist under manifests/ and no expected
-      # files are missing. Complements sini/files' content checks.
-      # Uses self (the flake source tree) as the reference directory.
-      checks.stale-manifests = pkgs.runCommand "check-stale-manifests" {
-        nativeBuildInputs = [ pkgs.findutils pkgs.jq ];
-      } ''
-        root="${self}"
-        errors=0
-
-        # Check for stale files: files under manifests/ not in the expected set
-        while IFS= read -r existing; do
-          rel="''${existing#"$root"/}"
-          if ! jq -e --arg path "$rel" '. | index($path)' ${expectedPathsJson} > /dev/null 2>&1; then
-            echo "ERROR: stale manifest file not generated by nixidy: $rel"
-            echo "  Run 'nix run .#sync-manifests' to remove it"
-            errors=$((errors + 1))
-          fi
-        done < <(find "$root/manifests" -type f 2>/dev/null)
-
-        # Check for missing files: expected files not found on disk
-        while IFS= read -r expected; do
-          if [ ! -f "$root/$expected" ]; then
-            echo "ERROR: expected manifest file missing: $expected"
-            echo "  Run 'nix run .#write-files' to generate it"
-            errors=$((errors + 1))
-          fi
-        done < <(jq -r '.[]' ${expectedPathsJson})
-
-        if [ "$errors" -gt 0 ]; then
-          echo ""
-          echo "Found $errors error(s). Run 'nix run .#sync-manifests' to fix."
-          exit 1
-        fi
-
-        touch $out
-      '';
     };
 }
