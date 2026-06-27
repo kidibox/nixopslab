@@ -23,22 +23,32 @@ rebuild node:
       -F qcow2 \
       disks/{{node}}.qcow2
 
-# Define (or redefine) a VM in libvirt. mac = stable MAC on the adm VLAN.
-define node mac: (init-disk node)
-    -virsh undefine {{node}} 2>/dev/null
+# Derive a stable locally-administered MAC from the trailing node index.
+# k3s-node1 → 02:00:00:00:01:01, k3s-node2 → 02:00:00:00:01:02, …
+_mac node:
+    #!/usr/bin/env bash
+    idx=$(grep -oP '\d+$' <<< "{{node}}")
+    printf "02:00:00:00:01:%02x\n" "$idx"
+
+# Define (or redefine) a VM in libvirt with a deterministic MAC on the adm VLAN.
+define node: (init-disk node)
+    #!/usr/bin/env bash
+    idx=$(grep -oP '\d+$' <<< "{{node}}")
+    mac=$(printf "02:00:00:00:01:%02x" "$idx")
+    virsh undefine {{node}} 2>/dev/null || true
     virt-install \
       --name {{node}} \
       --memory 2048 \
       --vcpus 2 \
       --disk "$(pwd)/disks/{{node}}.qcow2,bus=virtio,format=qcow2" \
-      --network type=direct,source=adm,source_mode=bridge,model=virtio,mac={{mac}} \
+      --network type=direct,source=adm,source_mode=bridge,model=virtio,mac="$mac" \
       --osinfo linux2024 \
       --import \
       --noautoconsole \
       --print-xml | virsh define /dev/stdin
 
 # Build, define, and start a node in one shot.
-up node mac: (define node mac)
+up node: (define node)
     virsh start {{node}}
 
 # Start a defined VM.
