@@ -27,7 +27,13 @@
     };
 
     networking.hostName = "k3s-node1";
-    networking.useDHCP = true;
+    networking.useDHCP = false;
+    networking.useNetworkd = true;
+
+    systemd.network.networks."10-eth" = {
+      matchConfig.Type = "ether";
+      networkConfig.DHCP = "ipv4";
+    };
 
     time.timeZone = "UTC";
     i18n.defaultLocale = "en_US.UTF-8";

@@ -43,6 +43,8 @@
                 --name "$node" --memory 2048 --vcpus 2 \
                 --disk "$(pwd)/disks/$node.qcow2,bus=virtio,format=qcow2" \
                 --network bridge=br-k8s,model=virtio,mac="$mac" \
+                --serial pty \
+                --console pty,target_type=serial \
                 --osinfo linux2024 --import --noautoconsole \
                 --print-xml | virsh define /dev/stdin
               virsh start "$node"
@@ -83,6 +85,11 @@
               virsh destroy "$1" 2>/dev/null || true
               virsh undefine "$1"
             '';
+          }
+          {
+            name = "vm-console";
+            help = "Attach to the serial console of a running VM (Ctrl+] to detach)";
+            command = ''virsh console "$1"'';
           }
           {
             name = "vm-ssh";
