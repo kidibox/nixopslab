@@ -29,11 +29,6 @@
     time.timeZone = "UTC";
     i18n.defaultLocale = "en_US.UTF-8";
 
-    users.users.k3s = {
-      isNormalUser = true;
-      extraGroups = [ "wheel" ];
-      openssh.authorizedKeys.keys = [ ];
-    };
     security.sudo.enable = true;
 
     services.openssh.enable = true;
@@ -43,5 +38,6 @@
 
   den.aspects.k3s-vm.includes = [
     den.aspects.k3s-server
+    den.aspects.kid
   ];
 }
