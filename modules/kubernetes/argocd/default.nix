@@ -28,6 +28,7 @@ in
       config = mkIf config.services.argocd.enable {
         applications.argocd = {
           namespace = "argocd";
+          createNamespace = true;
 
           helm.releases.argocd = {
             chart = charts.argoproj.argo-cd;
