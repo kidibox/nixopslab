@@ -31,6 +31,12 @@
 
             bgpControlPlane.enabled = true;
 
+            hubble = {
+              enabled = false;
+              relay.enabled = false;
+              ui.enabled = false;
+            };
+
             operator = {
               enabled = true;
               replicas = 1;
