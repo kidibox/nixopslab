@@ -22,7 +22,7 @@ in
     # (config, charts, lib, ...) — cluster context via config.cluster.*
     k8s-manifests = { config, charts, lib, ... }:
     let
-      domain = "argocd.${config.cluster.domain}";
+      domain = "argocd.${config.environment.domain}";
     in
     {
       options.services.argocd = with lib; {

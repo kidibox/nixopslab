@@ -2,7 +2,7 @@
 #
 # Defines policy wiring for den cluster entities:
 # - cluster-aspect: auto-includes the entity-named aspect for each cluster
-#   (so den.aspects.prod is auto-included for cluster prod)
+#   (so den.aspects.k3s-prod is auto-included for cluster k3s-prod)
 #
 # nixidy module collection uses den.lib.aspects.resolve in
 # modules/flake/nixidy.nix — den's scope engine walks the aspect

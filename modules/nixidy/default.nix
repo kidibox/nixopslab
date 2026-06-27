@@ -21,10 +21,17 @@ in
 {
   den.aspects.nixidy = {
     k8s-manifests = { lib, ... }: {
+      options.environment = with lib; {
+        domain = mkOption {
+          type = types.str;
+          description = "Base domain TLD for this environment (from den.environments)";
+        };
+      };
+
       options.cluster = with lib; {
         domain = mkOption {
           type = types.str;
-          description = "Base domain for this cluster (from den.clusters)";
+          description = "Base domain for this cluster (sourced from environment)";
         };
 
         networks = {

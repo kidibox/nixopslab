@@ -2,10 +2,10 @@
 #
 # Defines the cluster entity type (den.schema.cluster) with
 # isEntity = true and declares its properties. Each cluster
-# instance is registered in den.clusters (e.g. den.clusters.prod).
+# Each instance is registered in den.clusters (e.g. den.clusters.k3s-prod).
 #
-# The cluster schema integrates with den's entity system so that
-# future policy routing can resolve clusters into scope branches.
+# Clusters reference a den.environments entry via the `environment` field.
+# Domain and other cross-cluster config live on the environment entity.
 { lib, ... }:
 {
   # Declare the cluster entity type.
@@ -13,14 +13,14 @@
   config.den.schema.cluster.isEntity = true;
 
   # Cluster instance registry.
-  # Each cluster has: domain, networks, nixidy target, and optional storage.
+  # Each cluster has: environment ref, networks, nixidy target, and optional storage.
   options.den.clusters = lib.mkOption {
     type = lib.types.attrsOf (lib.types.submodule {
       options = {
-        domain = lib.mkOption {
+        environment = lib.mkOption {
           type = lib.types.str;
-          default = "home.arpa";
-          description = "Base domain for this cluster";
+          default = "prod";
+          description = "Name of the den.environments entry this cluster belongs to";
         };
 
         networks = lib.mkOption {
