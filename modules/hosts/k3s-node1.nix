@@ -31,7 +31,7 @@
     networking.useNetworkd = true;
 
     systemd.network.networks."10-eth" = {
-      matchConfig.Type = "ether";
+      matchConfig.Name = "en*";
       networkConfig.DHCP = "ipv4";
     };
 
