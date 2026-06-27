@@ -1,24 +1,28 @@
-# Den policies for cluster-to-nixidy routing.
+# Den policies for cluster-scope routing.
 #
-# Defines policy wiring for den cluster entities:
-# - cluster-aspect: auto-includes the entity-named aspect for each cluster
-#   (so den.aspects.k3s-prod is auto-included for cluster k3s-prod)
+# flake-to-clusters:           fan-out from flake entity to each den.clusters entry
+# cluster-aspect:              auto-include the entity-named aspect per cluster
+# cluster-collect-k3s-nodes:   collect k3s-nodes quirk into cluster scope
+# cluster-to-nixidy:           instantiate k8s-manifests modules into nixidyEnvs
 #
-# nixidy module collection uses den.lib.aspects.resolve in
-# modules/flake/nixidy.nix — den's scope engine walks the aspect
-# includes chain and collects k8s-manifests class content.
-#
-# Future when den's full pipeline (instantiate, policy dispatch) is wired:
-# - cluster-to-nixidy: use den.lib.policy.instantiate with class k8s-manifests
-# - env-to-clusters: resolve clusters into environment scope branches
-{ lib, den, ... }:
+# All cluster policies are wired into den.schema.cluster.includes so they fire
+# for every cluster entity. flake-to-clusters fans out to all clusters.
+{ lib, den, config, inputs, self, withSystem, ... }:
 let
-  inherit (den.lib.policy) resolve include;
+  inherit (den.lib.policy) include resolve;
+  clusters = config.den.clusters;
 in
 {
-  # Auto-include the entity-named aspect for each cluster.
-  # If den.aspects.<clusterName> exists, include it in the cluster scope.
-  # This mirrors sini/nix-config's cluster-aspect policy.
+  # Fan out from the flake entity to each cluster entity.
+  # This causes den to process every cluster via den.schema.cluster.includes.
+  den.policies.flake-to-clusters =
+    _:
+    map (clusterName:
+      resolve.to "cluster" {
+        cluster = clusters.${clusterName} // { name = clusterName; };
+      }
+    ) (builtins.attrNames clusters);
+
   den.policies.cluster-aspect =
     { cluster, ... }:
     let
@@ -28,8 +32,38 @@ in
       (include aspect)
     ];
 
-  # Wire cluster-aspect into the cluster schema.
+  # Instantiate k8s-manifests modules into flake.nixidyEnvs.<system>.<clusterName>.
+  # den prepends "flake" to intoAttr, so intoAttr = ["nixidyEnvs" ...] becomes
+  # config.flake.nixidyEnvs.*, i.e. self.nixidyEnvs.*.
+  #
+  # lib.unique: config.systems carries duplicates inside the den pipeline
+  # when hosts append their systems; map must dedupe or den warns on collisions.
+  den.policies.cluster-to-nixidy =
+    { cluster, ... }:
+    map (system:
+      den.lib.policy.instantiate {
+        inherit (cluster) name;
+        class = "k8s-manifests";
+        intoAttr = [
+          "nixidyEnvs"
+          system
+          cluster.name
+        ];
+        instantiate = { modules, ... }:
+          withSystem system ({ pkgs, ... }:
+            inputs.nixidy.lib.mkEnv {
+              pkgs = pkgs;
+              charts = self.chartsDerivations.${system};
+              inherit modules;
+            });
+      }
+    ) (lib.unique config.systems);
+
+  den.schema.flake.includes = [ den.policies.flake-to-clusters ];
+
   den.schema.cluster.includes = [
+    den.policies.cluster-to-nixidy
     den.policies.cluster-aspect
+    den.policies.cluster-collect-k3s-nodes
   ];
 }

@@ -21,15 +21,28 @@ in
 
     networks = {
       pods = {
-        cidr = "10.42.0.0/16";
-        description = "Pod CIDR (k3s default)";
+        cidr = "172.40.0.0/16";
+        description = "Pod CIDR (k3s --cluster-cidr)";
       };
 
       services = {
-        cidr = "10.43.0.0/16";
-        description = "Service CIDR (k3s default)";
+        cidr = "172.42.0.0/16";
+        description = "Service CIDR (k3s --service-cidr)";
+      };
+
+      loadbalancers = {
+        cidr = "10.0.42.0/24";
+        description = "LoadBalancer IP pool (BGP-advertised)";
       };
     };
+
+    bgp.peers = [
+      {
+        name = "router";
+        ip = "10.0.40.1";
+        asn = 64512;
+      }
+    ];
 
     nixidy = {
       repository = "https://github.com/kid/nixopslab.git";
@@ -48,7 +61,7 @@ in
   # Cluster aspect — bridge module + app includes.
   #
   # The k8s-manifests bridge maps environment domain and cluster networks
-  # into nixidy's config. Collected by den.lib.aspects.resolve alongside
+  # into nixidy's config. Collected by the cluster-to-nixidy policy alongside
   # application modules via the includes chain.
   den.aspects.k3s-prod = {
     k8s-manifests = { ... }: {
@@ -58,7 +71,9 @@ in
           networks = {
             podCIDR = c.networks.pods.cidr;
             serviceCIDR = c.networks.services.cidr;
+            lbCIDR = c.networks.loadbalancers.cidr;
           };
+          bgp.peers = c.bgp.peers;
         };
 
         environment.domain = e.domain;
@@ -74,6 +89,7 @@ in
     includes = with den.aspects; [
       nixidy
       cilium
+      cilium-bgp
       argocd
     ];
   };

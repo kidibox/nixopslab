@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumBGPClusterConfig
+metadata:
+  name: cilium-bgp-k3s-node1
+spec:
+  bgpInstances:
+    - localASN: 64513
+      name: router-session
+      peers:
+        - name: router
+          peerASN: 64512
+          peerAddress: 10.0.40.1
+          peerConfigRef:
+            name: router-peer
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/hostname: k3s-node1

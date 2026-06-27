@@ -44,6 +44,23 @@ in
             type = types.str;
             description = "Service CIDR";
           };
+
+          lbCIDR = mkOption {
+            type = types.str;
+            description = "LoadBalancer IP pool CIDR (BGP-advertised)";
+          };
+        };
+
+        bgp.peers = mkOption {
+          type = types.listOf (types.submodule {
+            options = {
+              name = mkOption { type = types.str; };
+              ip   = mkOption { type = types.str; };
+              asn  = mkOption { type = types.int; };
+            };
+          });
+          default = [ ];
+          description = "Upstream BGP peers (e.g. the router)";
         };
       };
 
@@ -51,6 +68,13 @@ in
         type = types.str;
         default = "home.arpa";
         description = "Base domain for ingress and services";
+      };
+
+      # Accept den's collision-validator module output (warnings is a NixOS
+      # concept; nixidy's module system doesn't have it by default).
+      options.warnings = mkOption {
+        type = types.listOf types.str;
+        default = [];
       };
 
       config = {

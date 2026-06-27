@@ -3,7 +3,10 @@
 # just rebuild k3s-node1  →  rebuild image, rebase overlay
 { den, ... }:
 {
-  den.hosts.x86_64-linux.k3s-node1 = { };
+  den.hosts.x86_64-linux.k3s-node1 = {
+    bgp.localAsn = 64513;
+    k3s.clusterName = "k3s-prod";
+  };
 
   den.aspects.k3s-node1.nixos = { lib, config, pkgs, modulesPath, ... }: {
     imports = [ "${modulesPath}/profiles/qemu-guest.nix" ];

@@ -1,0 +1,19 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumBGPPeerConfig
+metadata:
+  name: router-peer
+spec:
+  ebgpMultihop: 1
+  families:
+    - advertisements:
+        matchLabels:
+          advertise: lb-ips
+      afi: ipv4
+      safi: unicast
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 15
+  timers:
+    connectRetryTimeSeconds: 5
+    holdTimeSeconds: 30
+    keepAliveTimeSeconds: 10

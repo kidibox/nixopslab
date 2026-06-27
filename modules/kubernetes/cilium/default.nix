@@ -29,6 +29,8 @@
 
             ipam.mode = "kubernetes";
 
+            bgpControlPlane.enabled = true;
+
             operator = {
               enabled = true;
               replicas = 1;

@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumBGPAdvertisement
+metadata:
+  labels:
+    advertise: lb-ips
+  name: lb-advertisement
+spec:
+  advertisements:
+    - advertisementType: Service
+      selector:
+        matchExpressions:
+          - key: service.kubernetes.io/headless
+            operator: DoesNotExist
+      service:
+        addresses:
+          - ExternalIP
+          - LoadBalancerIP

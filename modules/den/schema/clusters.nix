@@ -71,6 +71,20 @@
           description = "Nixidy sync target for this cluster";
         };
 
+        bgp = {
+          peers = lib.mkOption {
+            type = lib.types.listOf (lib.types.submodule {
+              options = {
+                name = lib.mkOption { type = lib.types.str; };
+                ip   = lib.mkOption { type = lib.types.str; };
+                asn  = lib.mkOption { type = lib.types.int; };
+              };
+            });
+            default = [ ];
+            description = "Upstream BGP peers (e.g. the router)";
+          };
+        };
+
         storage = lib.mkOption {
           type = lib.types.attrsOf (lib.types.submodule {
             options = {
