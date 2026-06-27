@@ -2,7 +2,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # Build the qcow2 base image for a node.
 build node:
-    nix build .#nixosConfigurations.{{node}}.config.formats.qcow -o disks/{{node}}-base.qcow2
+    nix build .#nixosConfigurations.{{node}}.config.system.build.qcow -o disks/{{node}}-base.qcow2
 
 # Create writable overlay disk from the nix-built base (no-op if disk exists).
 init-disk node: (build node)
