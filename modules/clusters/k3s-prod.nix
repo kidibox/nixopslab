@@ -73,6 +73,7 @@ in
 
     includes = with den.aspects; [
       nixidy
+      cilium
       argocd
     ];
   };
