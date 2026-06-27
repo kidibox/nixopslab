@@ -50,6 +50,9 @@
                 exit 0
               fi
 
+              echo "Creating argocd namespace..."
+              kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
               echo "Applying ArgoCD manifests..."
               kubectl apply \
                 --server-side --force-conflicts --field-manager=argocd-controller \
