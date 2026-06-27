@@ -24,6 +24,11 @@
 
       den.url = "github:denful/den";
 
+      devshell = {
+        url = "github:numtide/devshell";
+        inputs.nixpkgs.follows = "nixpkgs";
+      };
+
       files.url = "github:sini/files";
 
       flake-parts = {
