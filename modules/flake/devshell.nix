@@ -7,7 +7,10 @@
       packages.nixidy = inputs.nixidy.packages.${system}.cli;
 
       devShells.default = pkgs.mkShell {
-        buildInputs = [ inputs.nixidy.packages.${system}.cli ];
+        buildInputs = [
+          inputs.nixidy.packages.${system}.cli
+          pkgs.just
+        ];
       };
     };
 }
