@@ -16,7 +16,7 @@
 
   den.aspects.k3s-node1.nixos = { ... }: {
     imports = [
-      inputs.nixos-generators.nixosModules.qcow2
+      inputs.nixos-generators.nixosModules.qcow
     ];
 
     networking.hostName = "k3s-node1";
