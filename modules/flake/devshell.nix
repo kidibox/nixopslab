@@ -35,13 +35,11 @@
               qemu-img create -f qcow2 \
                 -b "$(readlink -f disks/$node-base.qcow2/nixos.qcow2)" \
                 -F qcow2 disks/$node.qcow2
-              idx=$(grep -oP '\d+$' <<< "$node")
-              mac=$(printf "52:54:00:00:01:%02x" "$idx")
               virsh undefine "$node" 2>/dev/null || true
               virt-install \
                 --name "$node" --memory 2048 --vcpus 2 \
                 --disk "$(pwd)/disks/$node.qcow2,bus=virtio,format=qcow2" \
-                --network bridge=br-k8s,model=virtio,mac="$mac" \
+                --network bridge=br-k8s,model=virtio \
                 --serial pty \
                 --console pty,target_type=serial \
                 --osinfo linux2024 --import --noautoconsole \
