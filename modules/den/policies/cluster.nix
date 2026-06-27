@@ -11,6 +11,7 @@
 let
   inherit (den.lib.policy) include resolve;
   clusters = config.den.clusters;
+  environments = config.den.environments;
 in
 {
   # Fan out from the flake entity to each cluster entity.
@@ -18,8 +19,14 @@ in
   den.policies.flake-to-clusters =
     _:
     map (clusterName:
-      resolve.to "cluster" {
+      let
         cluster = clusters.${clusterName} // { name = clusterName; };
+        environment = environments.${clusters.${clusterName}.environment} // {
+          name = clusters.${clusterName}.environment;
+        };
+      in
+      resolve.to "cluster" {
+        inherit cluster environment;
       }
     ) (builtins.attrNames clusters);
 

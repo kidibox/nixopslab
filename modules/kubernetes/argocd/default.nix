@@ -1,13 +1,3 @@
-# ArgoCD — den aspect with k8s-manifests content.
-#
-# Declares the den aspect metadata (service-domains quirk,
-# k8s-manifests class) and provides k8s-manifests module
-# content directly on the aspect.
-#
-# The nixidy env assembler collects k8s-manifests modules
-# from the cluster aspect tree via den.lib.aspects.resolve.
-# Cluster context (domain, etc.) is available via
-# config.cluster.* (set by clusters/<name>.nix).
 { lib, ... }:
 let
   inherit (lib) types mkOption mkIf;
@@ -18,11 +8,9 @@ in
   den.aspects.argocd = {
     service-domains = [ "argocd" ];
 
-    # k8s-manifests module for nixidy: receives nixidy module args
-    # (config, charts, lib, ...) — cluster context via config.cluster.*
-    k8s-manifests = { config, charts, lib, ... }:
+    k8s-manifests = { environment, config, charts, lib, ... }:
     let
-      domain = "argocd.${config.environment.domain}";
+      domain = "argocd.${environment.domain}";
     in
     {
       options.services.argocd = with lib; {

@@ -1,84 +1,29 @@
-# Nixidy base aspect — provides the root nixidy module for every cluster.
-#
-# This den aspect contributes a k8s-manifests module that:
-# - Defines `options.cluster.*` for shared cluster data (domain, networks)
-# - Defines `options.networking.domain`
-# - Sets `config.nixidy.defaults` (syncPolicy, helm transformer)
-# - Sets `config.nixidy.extraFiles` (README.md)
-#
-# Cluster-specific values (config.cluster.*, config.nixidy.target,
-# config.networking.domain) are bridged from den.clusters.<name>
-# by modules/flake/nixidy.nix — that's the minimal glue between
-# den's entity data and nixidy's module system.
-#
-# Every cluster's aspect includes this so the shared setup is always present.
-# Application aspects can then read `config.cluster.domain`,
-# `config.networking.domain`, etc.
-{ lib, ... }:
+{ ... }:
 let
-  inherit (lib) types mkOption;
-in
-{
-  den.aspects.nixidy = {
-    k8s-manifests = { lib, ... }: {
-      options.environment = with lib; {
-        domain = mkOption {
-          type = types.str;
-          description = "Base domain TLD for this environment (from den.environments)";
-        };
-      };
-
-      options.cluster = with lib; {
-        domain = mkOption {
-          type = types.str;
-          description = "Base domain for this cluster (sourced from environment)";
-        };
-
-        networks = {
-          podCIDR = mkOption {
-            type = types.str;
-            description = "Pod CIDR";
-          };
-
-          serviceCIDR = mkOption {
-            type = types.str;
-            description = "Service CIDR";
-          };
-
-          lbCIDR = mkOption {
-            type = types.str;
-            description = "LoadBalancer IP pool CIDR (BGP-advertised)";
-          };
-        };
-
-        bgp.peers = mkOption {
-          type = types.listOf (types.submodule {
-            options = {
-              name = mkOption { type = types.str; };
-              ip   = mkOption { type = types.str; };
-              asn  = mkOption { type = types.int; };
-            };
-          });
+  nixidyDefaultsAspect = {
+    name = "nixidy/defaults";
+    k8s-manifests =
+      { cluster, environment, ... }:
+      { lib, ... }:
+      {
+        # Accept den's collision-validator module output (warnings is a NixOS
+        # concept; nixidy's module system doesn't have it by default).
+        options.warnings = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
           default = [ ];
-          description = "Upstream BGP peers (e.g. the router)";
         };
-      };
 
-      options.networking.domain = mkOption {
-        type = types.str;
-        default = "home.arpa";
-        description = "Base domain for ingress and services";
-      };
+        config.nixidy = {
+          env = lib.mkDefault "${environment.name}-${cluster.name}";
 
-      # Accept den's collision-validator module output (warnings is a NixOS
-      # concept; nixidy's module system doesn't have it by default).
-      options.warnings = mkOption {
-        type = types.listOf types.str;
-        default = [];
-      };
+          target = {
+            repository = lib.mkDefault cluster.nixidy.repository;
+            branch = lib.mkDefault cluster.nixidy.branch;
+            rootPath = lib.mkDefault cluster.nixidy.rootPath;
+          };
 
-      config = {
-        nixidy = {
+          bootstrapManifest.enable = true;
+
           extraFiles."README.md".text = ''
             # Rendered manifests
 
@@ -86,15 +31,12 @@ in
           '';
 
           defaults = {
-            syncPolicy = {
-              autoSync = {
-                enable = true;
-                prune = true;
-                selfHeal = true;
-              };
+            syncPolicy.autoSync = {
+              enable = true;
+              prune = true;
+              selfHeal = true;
             };
 
-            # Strip release-tracking labels that produce noisy diffs
             helm.transformer = map (
               lib.kube.removeLabels [
                 "app.kubernetes.io/managed-by"
@@ -105,6 +47,8 @@ in
           };
         };
       };
-    };
   };
+in
+{
+  den.schema.cluster.includes = [ nixidyDefaultsAspect ];
 }

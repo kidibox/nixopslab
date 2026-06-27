@@ -4,3 +4,4 @@
 .direnv/
 *.fd
 *.qcow2
+result
