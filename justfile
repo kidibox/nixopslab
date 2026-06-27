@@ -10,7 +10,7 @@ init-disk node: (build node)
     mkdir -p disks
     if [ ! -f disks/{{node}}.qcow2 ]; then
       qemu-img create -f qcow2 \
-        -b "$(readlink -f disks/{{node}}-base.qcow2)" \
+        -b "$(readlink -f disks/{{node}}-base.qcow2/nixos.qcow2)" \
         -F qcow2 \
         disks/{{node}}.qcow2
     fi
@@ -19,7 +19,7 @@ init-disk node: (build node)
 rebuild node:
     just build {{node}}
     qemu-img rebase -u -f qcow2 \
-      -b "$(readlink -f disks/{{node}}-base.qcow2)" \
+      -b "$(readlink -f disks/{{node}}-base.qcow2/nixos.qcow2)" \
       -F qcow2 \
       disks/{{node}}.qcow2
 
