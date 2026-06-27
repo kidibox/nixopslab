@@ -1,36 +1,26 @@
-# k3s-node1 host — microvm (qemu) with macvtap on adm VLAN.
+# k3s-node1 — libvirt VM on the adm VLAN.
 #
-# Before running, create the macvtap interface on the host (once per session):
-#   sudo ip link add link adm name vm-k3s-node1 type macvtap mode bridge
-#   sudo ip link set vm-k3s-node1 up
+# Build disk image:
+#   just build k3s-node1
 #
-# Build and launch:
-#   nix build .#nixosConfigurations.k3s-node1.config.microvm.runner.qemu
-#   sudo ./result
+# First-time setup and launch:
+#   just up k3s-node1 02:00:00:00:01:01
 #
-# The VM's NIC appears on the adm VLAN with MAC 02:00:00:00:01:01.
-# SSH in via DHCP address:  ssh kid@<vm-ip>
+# Subsequent launches (after define):
+#   just start k3s-node1
 #
-# Cleanup after session:
-#   sudo ip link delete vm-k3s-node1
+# See the justfile for the full workflow.
 { den, inputs, ... }:
 {
   den.hosts.x86_64-linux.k3s-node1 = { };
 
   den.aspects.k3s-node1.nixos = { ... }: {
     imports = [
-      # microvm NixOS module — only needed for microvm hosts
-      inputs.microvm.nixosModules.microvm
+      inputs.nixos-generators.nixosModules.qcow2
     ];
 
     networking.hostName = "k3s-node1";
-    networking.useNetworkd = true;
-
-    # macvtap NIC — brought up via DHCP on the adm VLAN
-    systemd.network.networks."10-adm" = {
-      matchConfig.Name = "vm-adm";
-      networkConfig.DHCP = "yes";
-    };
+    networking.useDHCP = true;
 
     time.timeZone = "UTC";
     i18n.defaultLocale = "en_US.UTF-8";
@@ -39,28 +29,6 @@
     security.sudo.enable = true;
 
     services.openssh.enable = true;
-
-    microvm = {
-      hypervisor = "qemu";
-      mem = 2048;
-      vcpu = 2;
-
-      interfaces = [
-        {
-          type = "macvtap";
-          id = "vm-k3s-node1";   # macvtap interface name on the host
-          mac = "02:00:00:00:01:01";
-        }
-      ];
-
-      volumes = [
-        {
-          mountPoint = "/";
-          image = "k3s-node1-root.img";
-          size = 20480;
-        }
-      ];
-    };
 
     system.stateVersion = "25.05";
   };

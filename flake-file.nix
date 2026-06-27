@@ -8,8 +8,8 @@
 
   inputs = {
     den.url = "github:denful/den";
-    microvm = {
-      url = "github:astro/microvm.nix";
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     files.url = "github:sini/files";
