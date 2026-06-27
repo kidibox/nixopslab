@@ -2,3 +2,5 @@
 # Re-generate with: nixidy switch .#prod
 
 .direnv/
+*.fd
+*.qcow2
