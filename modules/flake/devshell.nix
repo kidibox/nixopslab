@@ -42,7 +42,7 @@
               virt-install \
                 --name "$node" --memory 2048 --vcpus 2 \
                 --disk "$(pwd)/disks/$node.qcow2,bus=virtio,format=qcow2" \
-                --network type=direct,source=adm,source_mode=bridge,model=virtio,mac="$mac" \
+                --network bridge=br-k8s,model=virtio,mac="$mac" \
                 --osinfo linux2024 --import --noautoconsole \
                 --print-xml | virsh define /dev/stdin
               virsh start "$node"
