@@ -24,11 +24,6 @@
 
       den.url = "github:denful/den";
 
-      nixos-generators = {
-        url = "github:nix-community/nixos-generators";
-        inputs.nixpkgs.follows = "nixpkgs";
-      };
-
       files.url = "github:sini/files";
 
       flake-parts = {
