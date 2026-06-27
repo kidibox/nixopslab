@@ -29,6 +29,7 @@
     time.timeZone = "UTC";
     i18n.defaultLocale = "en_US.UTF-8";
 
+    users.mutableUsers = false;
     security.sudo.enable = true;
 
     services.openssh.enable = true;
