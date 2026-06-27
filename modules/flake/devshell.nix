@@ -31,11 +31,10 @@
               mkdir -p disks
               nix build .#nixosConfigurations.$node.config.system.build.qcow \
                 -o disks/$node-base.qcow2
-              if [ ! -f disks/$node.qcow2 ]; then
-                qemu-img create -f qcow2 \
-                  -b "$(readlink -f disks/$node-base.qcow2/nixos.qcow2)" \
-                  -F qcow2 disks/$node.qcow2
-              fi
+              rm -f disks/$node.qcow2
+              qemu-img create -f qcow2 \
+                -b "$(readlink -f disks/$node-base.qcow2/nixos.qcow2)" \
+                -F qcow2 disks/$node.qcow2
               idx=$(grep -oP '\d+$' <<< "$node")
               mac=$(printf "02:00:00:00:01:%02x" "$idx")
               virsh undefine "$node" 2>/dev/null || true
