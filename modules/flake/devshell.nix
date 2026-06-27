@@ -36,7 +36,7 @@
                 -b "$(readlink -f disks/$node-base.qcow2/nixos.qcow2)" \
                 -F qcow2 disks/$node.qcow2
               idx=$(grep -oP '\d+$' <<< "$node")
-              mac=$(printf "02:00:00:00:01:%02x" "$idx")
+              mac=$(printf "52:54:00:00:01:%02x" "$idx")
               virsh undefine "$node" 2>/dev/null || true
               virt-install \
                 --name "$node" --memory 2048 --vcpus 2 \

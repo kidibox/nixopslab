@@ -21,19 +21,19 @@
 
     system.build.qcow = import "${modulesPath}/../lib/make-disk-image.nix" {
       inherit lib config pkgs;
-      diskSize = "auto";
+      diskSize = 20480;
       format = "qcow2";
       partitionTableType = "hybrid";
     };
 
     networking.hostName = "k3s-node1";
-    networking.useDHCP = false;
+    networking.useDHCP = true;
     networking.useNetworkd = true;
 
-    systemd.network.networks."10-eth" = {
-      matchConfig.Name = "en*";
-      networkConfig.DHCP = "ipv4";
-    };
+    # systemd.network.networks."10-eth" = {
+    #   matchConfig.Name = "en*";
+    #   networkConfig.DHCP = "ipv4";
+    # };
 
     time.timeZone = "UTC";
     i18n.defaultLocale = "en_US.UTF-8";
@@ -48,6 +48,7 @@
 
   den.aspects.k3s-node1.includes = [
     den.aspects.k3s-server
+    den.aspects.k3s-bootstrap
     den.aspects.kid
   ];
 }
