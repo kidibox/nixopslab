@@ -24,6 +24,11 @@
 
       den.url = "github:denful/den";
 
+      microvm = {
+        url = "github:astro/microvm.nix";
+        inputs.nixpkgs.follows = "nixpkgs";
+      };
+
       files.url = "github:sini/files";
 
       flake-parts = {

@@ -25,6 +25,10 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
     import-tree.url = "github:vic/import-tree";
+    microvm = {
+      url = "github:astro/microvm.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nixhelm = {
       url = "github:farcaller/nixhelm";
       inputs.nixpkgs.follows = "nixpkgs";
