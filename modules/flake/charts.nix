@@ -8,16 +8,16 @@
     inputs.nixhelm.chartsDerivations.${system}
   );
 
-  perSystem =
-    { system, ... }:
-    let
-      charts = inputs.nixhelm.chartsDerivations.${system};
-    in
-    {
-      # Charts used in this flake, visible as packages in nix flake show.
-      # Add entries here when new helm releases are introduced in aspects.
-      packages = {
-        helm-argo-cd = charts.argoproj.argo-cd;
-      };
-    };
+  # perSystem =
+  #   { system, ... }:
+  #   let
+  #     charts = inputs.nixhelm.chartsDerivations.${system};
+  #   in
+  #   {
+  #     # Charts used in this flake, visible as packages in nix flake show.
+  #     # Add entries here when new helm releases are introduced in aspects.
+  #     packages = {
+  #       helm-argo-cd = charts.argoproj.argo-cd;
+  #     };
+  #   };
 }

@@ -7,6 +7,8 @@
 {
   den.aspects.kid = {
     nixos = { ... }: {
+      security.sudo.wheelNeedsPassword = false;
+
       users.users.kid = {
         isNormalUser = true;
         extraGroups = [ "wheel" ];

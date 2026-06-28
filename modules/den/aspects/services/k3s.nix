@@ -23,7 +23,7 @@ in
       localASN = host.bgp.localAsn or null;
     };
 
-    nixos = { host, ... }:
+    nixos = { host, pkgs, ... }:
     let
       clusterName = host.k3s.clusterName or "k3s-prod";
       cluster = clusters.${clusterName};
@@ -46,8 +46,37 @@ in
         ];
       };
 
-      # Allow k3s API port through firewall
-      networking.firewall.allowedTCPPorts = [ 6443 ];
+      # Cilium owns all pod/node firewalling; the NixOS host firewall conflicts
+      # with Cilium's BPF datapath (outgoing traffic bypasses iptables OUTPUT so
+      # conntrack never records it, then incoming replies hit nixos-fw with no
+      # RELATED/ESTABLISHED entry and are refused).
+      networking.firewall.enable = lib.mkForce false;
+
+      # Keep the kernel on the nftables backend. Without this, k3s's bundled
+      # iptables binary writes legacy-backend tables; Cilium's iptables-nft
+      # wrapper then rejects them ("table mangle is incompatible, use nft tool")
+      # and crashes the agent.
+      networking.nftables.enable = true;
+
+      boot.kernelModules = [
+        "br_netfilter" # bridge → iptables/nftables visibility (required by Cilium)
+        "overlay"      # overlayfs for containerd image layers
+        "ip_vs"        # IPVS modules for kube-proxy replacement
+        "ip_vs_rr"
+        "ip_vs_wrr"
+        "ip_vs_sh"
+      ];
+
+      boot.kernel.sysctl = {
+        "net.bridge.bridge-nf-call-iptables" = 1;
+        "net.bridge.bridge-nf-call-ip6tables" = 1;
+        "net.core.bpf_jit_enable" = 1;
+        "net.core.bpf_jit_harden" = 0;
+      };
+
+      # Provide the host iptables-nft + nft on PATH so k3s, kubelet, and
+      # Cilium all use the same nft backend for iptables canaries.
+      environment.systemPackages = [ pkgs.iptables pkgs.nftables ];
     };
   };
 }

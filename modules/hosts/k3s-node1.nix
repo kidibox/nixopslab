@@ -19,14 +19,15 @@
 
     boot.growPartition = true;
     boot.kernelParams = [ "console=ttyS0" ];
-    boot.loader.grub.device = lib.mkDefault "/dev/vda";
+    boot.loader.systemd-boot.enable = true;
+    boot.loader.efi.canTouchEfiVariables = false;
     boot.loader.timeout = 0;
 
     system.build.qcow = import "${modulesPath}/../lib/make-disk-image.nix" {
       inherit lib config pkgs;
       diskSize = 20480;
       format = "qcow2";
-      partitionTableType = "hybrid";
+      partitionTableType = "efi";
     };
 
     networking.hostName = "k3s-node1";
@@ -45,6 +46,7 @@
     security.sudo.enable = true;
 
     services.openssh.enable = true;
+    services.qemuGuest.enable = true;
 
     system.stateVersion = "25.05";
   };
