@@ -132,7 +132,7 @@
             description = "Bootstrap ArgoCD and hand off to GitOps";
             after = [ "k3s.service" "k3s-bootstrap-cilium.service" ];
             requires = [ "k3s.service" "k3s-bootstrap-cilium.service" ];
-            path = [ pkgs.kubectl ];
+            path = [ pkgs.kubectl pkgs.findutils ];
             environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
             serviceConfig = {
               Type = "oneshot";
@@ -150,10 +150,28 @@
                   exit 0
                 fi
 
+                echo "Applying ArgoCD CRDs..."
+                declare -a crd_files
+                while IFS= read -r f; do crd_files+=("-f" "$f"); done < <(
+                  find ${argocdDir} -name "CustomResourceDefinition-*.yaml" | sort
+                )
+                [[ ''${#crd_files[@]} -gt 0 ]] && \
+                  kubectl apply --server-side --force-conflicts --field-manager=argocd-controller "''${crd_files[@]}"
+
+                echo "Waiting for ArgoCD CRDs to be established..."
+                kubectl wait --for=condition=Established \
+                  crd/applications.argoproj.io \
+                  crd/applicationsets.argoproj.io \
+                  crd/appprojects.argoproj.io \
+                  --timeout=60s
+
                 echo "Applying ArgoCD manifests..."
-                kubectl apply \
-                  --server-side --force-conflicts --field-manager=argocd-controller \
-                  -f ${argocdDir}
+                declare -a manifest_files
+                while IFS= read -r f; do manifest_files+=("-f" "$f"); done < <(
+                  find ${argocdDir} -name "*.yaml" ! -name "CustomResourceDefinition-*.yaml" | sort
+                )
+                [[ ''${#manifest_files[@]} -gt 0 ]] && \
+                  kubectl apply --server-side --force-conflicts --field-manager=argocd-controller "''${manifest_files[@]}"
 
                 echo "Waiting for argocd-application-controller rollout..."
                 kubectl rollout status -n argocd statefulset/argocd-application-controller --timeout=300s
