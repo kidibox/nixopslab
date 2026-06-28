@@ -5,14 +5,16 @@
 #
 # Wave ordering:
 #   0. k3s-bootstrap-namespaces — all Namespace resources from all apps
-#   1. k3s-bootstrap-cilium     — Cilium core manifests, wait for operator
+#   1. k3s-bootstrap-crds       — all CustomResourceDefinition resources from all apps,
+#                                  wait for Established before proceeding
+#   2. k3s-bootstrap-cilium     — Cilium core manifests, wait for operator
 #                                  (operator registers Cilium CRDs at startup),
 #                                  then apply Cilium custom resources
-#   2. k3s-bootstrap-argocd     — ArgoCD + self-managing Application
+#   3. k3s-bootstrap-argocd     — ArgoCD + self-managing Application
 #
 # Cilium does not ship CRDs in its Helm chart; the cilium-operator registers
 # them at runtime. Applying Cilium*.yaml CRs before the operator is ready
-# causes "no kind is registered" errors, hence the split in wave 1.
+# causes "no kind is registered" errors, hence the split in wave 2.
 #
 # Each service is idempotent: exits early if already installed.
 { den, self, ... }:
@@ -64,7 +66,41 @@
             wantedBy = [ "multi-user.target" ];
           };
 
-          # Wave 1: Cilium CNI
+          # Wave 1: apply all CRDs and wait for them to be Established
+          k3s-bootstrap-crds = {
+            description = "Bootstrap CRDs for all applications";
+            after = [ "k3s.service" "k3s-bootstrap-namespaces.service" ];
+            requires = [ "k3s.service" "k3s-bootstrap-namespaces.service" ];
+            path = [ pkgs.kubectl pkgs.findutils ];
+            environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = pkgs.writeShellScript "k3s-bootstrap-crds" ''
+                set -e
+
+                echo "Applying all CRDs..."
+                declare -a files
+                while IFS= read -r f; do files+=("-f" "$f"); done < <(
+                  find ${ciliumDir} ${argocdDir} -name "CustomResourceDefinition-*.yaml" | sort
+                )
+                [[ ''${#files[@]} -gt 0 ]] && \
+                  kubectl apply --server-side --force-conflicts --field-manager=argocd-controller "''${files[@]}"
+
+                echo "Waiting for ArgoCD CRDs to be established..."
+                kubectl wait --for=condition=Established \
+                  crd/applications.argoproj.io \
+                  crd/applicationsets.argoproj.io \
+                  crd/appprojects.argoproj.io \
+                  --timeout=60s
+
+                echo "CRDs ready."
+              '';
+            };
+            wantedBy = [ "multi-user.target" ];
+          };
+
+          # Wave 2: Cilium CNI
           #
           # Cilium's Helm chart ships no CRDs — the cilium-operator registers
           # them at startup. We therefore split the apply in two:
@@ -73,8 +109,8 @@
           #   c) Cilium custom resources (CiliumBGP*, CiliumLoadBalancerIPPool)
           k3s-bootstrap-cilium = {
             description = "Bootstrap Cilium CNI";
-            after = [ "k3s.service" "k3s-bootstrap-namespaces.service" ];
-            requires = [ "k3s.service" "k3s-bootstrap-namespaces.service" ];
+            after = [ "k3s.service" "k3s-bootstrap-crds.service" ];
+            requires = [ "k3s.service" "k3s-bootstrap-crds.service" ];
             path = [ pkgs.kubectl pkgs.findutils ];
             environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
             serviceConfig = {
@@ -127,12 +163,12 @@
             wantedBy = [ "multi-user.target" ];
           };
 
-          # Wave 2: ArgoCD — depends on Cilium for pod networking
+          # Wave 3: ArgoCD — depends on Cilium for pod networking
           k3s-bootstrap-argocd = {
             description = "Bootstrap ArgoCD and hand off to GitOps";
             after = [ "k3s.service" "k3s-bootstrap-cilium.service" ];
             requires = [ "k3s.service" "k3s-bootstrap-cilium.service" ];
-            path = [ pkgs.kubectl pkgs.findutils ];
+            path = [ pkgs.kubectl ];
             environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
             serviceConfig = {
               Type = "oneshot";
@@ -140,38 +176,15 @@
               ExecStart = pkgs.writeShellScript "k3s-bootstrap-argocd" ''
                 set -e
 
-                echo "Waiting for k3s API server..."
-                until kubectl get nodes >/dev/null 2>&1; do
-                  sleep 5
-                done
-
                 if kubectl get statefulset -n argocd argocd-application-controller >/dev/null 2>&1; then
                   echo "ArgoCD already installed, skipping bootstrap."
                   exit 0
                 fi
 
-                echo "Applying ArgoCD CRDs..."
-                declare -a crd_files
-                while IFS= read -r f; do crd_files+=("-f" "$f"); done < <(
-                  find ${argocdDir} -name "CustomResourceDefinition-*.yaml" | sort
-                )
-                [[ ''${#crd_files[@]} -gt 0 ]] && \
-                  kubectl apply --server-side --force-conflicts --field-manager=argocd-controller "''${crd_files[@]}"
-
-                echo "Waiting for ArgoCD CRDs to be established..."
-                kubectl wait --for=condition=Established \
-                  crd/applications.argoproj.io \
-                  crd/applicationsets.argoproj.io \
-                  crd/appprojects.argoproj.io \
-                  --timeout=60s
-
                 echo "Applying ArgoCD manifests..."
-                declare -a manifest_files
-                while IFS= read -r f; do manifest_files+=("-f" "$f"); done < <(
-                  find ${argocdDir} -name "*.yaml" ! -name "CustomResourceDefinition-*.yaml" | sort
-                )
-                [[ ''${#manifest_files[@]} -gt 0 ]] && \
-                  kubectl apply --server-side --force-conflicts --field-manager=argocd-controller "''${manifest_files[@]}"
+                kubectl apply \
+                  --server-side --force-conflicts --field-manager=argocd-controller \
+                  -f ${argocdDir}
 
                 echo "Waiting for argocd-application-controller rollout..."
                 kubectl rollout status -n argocd statefulset/argocd-application-controller --timeout=300s
