@@ -63,7 +63,7 @@
               chmod +w disks/$node-efi-vars.fd
               virsh undefine "$node" --nvram 2>/dev/null || true
               virt-install \
-                --name "$node" --memory 2048 --vcpus 2 \
+                --name "$node" --memory 4096 --vcpus 2 \
                 --disk "$(pwd)/disks/$node.qcow2,bus=virtio,format=qcow2" \
                 --network bridge=br-k8s,model=virtio \
                 --boot loader=${ovmf}/FV/OVMF_CODE.fd,loader.readonly=yes,loader.type=pflash,nvram.template=${ovmf}/FV/OVMF_VARS.fd,nvram=$(pwd)/disks/$node-efi-vars.fd \
