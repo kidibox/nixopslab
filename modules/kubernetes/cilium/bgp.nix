@@ -16,14 +16,14 @@
             let
               bgpPeers = cluster.bgp.peers;
             in
-            # CiliumBGPAdvertisement: advertise LoadBalancer IPs to the router
+            # CiliumBGPAdvertisement: advertise LB IPs, pod CIDRs, and ClusterIP routes
             [
               {
                 apiVersion = "cilium.io/v2alpha1";
                 kind = "CiliumBGPAdvertisement";
                 metadata = {
-                  name = "lb-advertisement";
-                  labels.advertise = "lb-ips";
+                  name = "cluster-advertisement";
+                  labels.advertise = "cluster-routes";
                 };
                 spec.advertisements = [
                   {
@@ -32,6 +32,19 @@
                       "ExternalIP"
                       "LoadBalancerIP"
                     ];
+                    selector.matchExpressions = [
+                      {
+                        key = "service.kubernetes.io/headless";
+                        operator = "DoesNotExist";
+                      }
+                    ];
+                  }
+                  {
+                    advertisementType = "PodCIDR";
+                  }
+                  {
+                    advertisementType = "Service";
+                    service.addresses = [ "ClusterIP" ];
                     selector.matchExpressions = [
                       {
                         key = "service.kubernetes.io/headless";
@@ -61,7 +74,7 @@
                     {
                       afi = "ipv4";
                       safi = "unicast";
-                      advertisements.matchLabels.advertise = "lb-ips";
+                      advertisements.matchLabels.advertise = "cluster-routes";
                     }
                   ];
                 };

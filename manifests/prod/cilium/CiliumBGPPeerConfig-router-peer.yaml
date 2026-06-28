@@ -7,7 +7,7 @@ spec:
   families:
     - advertisements:
         matchLabels:
-          advertise: lb-ips
+          advertise: cluster-routes
       afi: ipv4
       safi: unicast
   gracefulRestart:

@@ -2,8 +2,8 @@ apiVersion: cilium.io/v2alpha1
 kind: CiliumBGPAdvertisement
 metadata:
   labels:
-    advertise: lb-ips
-  name: lb-advertisement
+    advertise: cluster-routes
+  name: cluster-advertisement
 spec:
   advertisements:
     - advertisementType: Service
@@ -15,3 +15,12 @@ spec:
         addresses:
           - ExternalIP
           - LoadBalancerIP
+    - advertisementType: PodCIDR
+    - advertisementType: Service
+      selector:
+        matchExpressions:
+          - key: service.kubernetes.io/headless
+            operator: DoesNotExist
+      service:
+        addresses:
+          - ClusterIP
