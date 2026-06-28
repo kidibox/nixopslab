@@ -49,6 +49,7 @@
       cilium-bgp
       coredns
       argocd
+      cert-manager
     ];
   };
 }
