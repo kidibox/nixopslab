@@ -10,7 +10,9 @@
 #   2. k3s-bootstrap-cilium     — Cilium core manifests, wait for operator
 #                                  (operator registers Cilium CRDs at startup),
 #                                  then apply Cilium custom resources
-#   3. k3s-bootstrap-argocd     — ArgoCD + self-managing Application
+#   3. k3s-bootstrap-coredns    — CoreDNS deployment; ArgoCD needs cluster DNS to
+#                                  resolve the git repository on first sync
+#   4. k3s-bootstrap-argocd     — ArgoCD + self-managing Application
 #
 # Cilium does not ship CRDs in its Helm chart; the cilium-operator registers
 # them at runtime. Applying Cilium*.yaml CRs before the operator is ready
@@ -28,7 +30,9 @@
           name = "k3s-prod-${builtins.replaceStrings [ "/" "." ] [ "-" "-" ] name}";
         };
         ciliumDir = manifestPath "cilium";
+        corednsDir = manifestPath "coredns";
         argocdDir = manifestPath "argocd";
+        bootstrapFile = manifestPath "bootstrap.yaml";
         waitForApi = ''
           echo "Waiting for k3s API server..."
           until kubectl get nodes >/dev/null 2>&1; do
@@ -55,7 +59,7 @@
                 echo "Applying all Namespace resources..."
                 declare -a files
                 while IFS= read -r f; do files+=("-f" "$f"); done < <(
-                  find ${ciliumDir} ${argocdDir} -name "Namespace-*.yaml" | sort
+                  find ${ciliumDir} ${corednsDir} ${argocdDir} -name "Namespace-*.yaml" | sort
                 )
                 [[ ''${#files[@]} -gt 0 ]] && \
                   kubectl apply --server-side --force-conflicts --field-manager=argocd-controller "''${files[@]}"
@@ -163,11 +167,43 @@
             wantedBy = [ "multi-user.target" ];
           };
 
-          # Wave 3: ArgoCD — depends on Cilium for pod networking
-          k3s-bootstrap-argocd = {
-            description = "Bootstrap ArgoCD and hand off to GitOps";
+          # Wave 3: CoreDNS — must be up before ArgoCD so its git sync can resolve hostnames
+          k3s-bootstrap-coredns = {
+            description = "Bootstrap CoreDNS cluster DNS";
             after = [ "k3s.service" "k3s-bootstrap-cilium.service" ];
             requires = [ "k3s.service" "k3s-bootstrap-cilium.service" ];
+            path = [ pkgs.kubectl ];
+            environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = pkgs.writeShellScript "k3s-bootstrap-coredns" ''
+                set -e
+
+                if kubectl get deployment -n kube-system coredns >/dev/null 2>&1; then
+                  echo "CoreDNS already installed, skipping bootstrap."
+                  exit 0
+                fi
+
+                echo "Applying CoreDNS manifests..."
+                kubectl apply \
+                  --server-side --force-conflicts --field-manager=argocd-controller \
+                  -f ${corednsDir}
+
+                echo "Waiting for CoreDNS deployment to be ready..."
+                kubectl rollout status -n kube-system deployment/coredns --timeout=120s
+
+                echo "CoreDNS bootstrap complete."
+              '';
+            };
+            wantedBy = [ "multi-user.target" ];
+          };
+
+          # Wave 4: ArgoCD — depends on CoreDNS for git hostname resolution
+          k3s-bootstrap-argocd = {
+            description = "Bootstrap ArgoCD and hand off to GitOps";
+            after = [ "k3s.service" "k3s-bootstrap-coredns.service" ];
+            requires = [ "k3s.service" "k3s-bootstrap-coredns.service" ];
             path = [ pkgs.kubectl ];
             environment.KUBECONFIG = "/etc/rancher/k3s/k3s.yaml";
             serviceConfig = {
@@ -189,12 +225,12 @@
                 echo "Waiting for argocd-application-controller rollout..."
                 kubectl rollout status -n argocd statefulset/argocd-application-controller --timeout=300s
 
-                echo "Applying self-managing Application..."
+                echo "Applying bootstrap Application..."
                 kubectl apply \
                   --server-side --force-conflicts --field-manager=argocd-controller \
-                  -f ${manifestPath "apps/Application-argocd.yaml"}
+                  -f ${bootstrapFile}
 
-                echo "Bootstrap complete — ArgoCD is now managing itself from git."
+                echo "Bootstrap complete — ArgoCD is now managing all applications from git."
               '';
             };
             wantedBy = [ "multi-user.target" ];

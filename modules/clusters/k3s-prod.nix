@@ -12,6 +12,7 @@
       services = {
         cidr = "172.42.0.0/16";
         description = "Service CIDR (k3s --service-cidr)";
+        assignments.coredns = "172.42.0.10";
       };
 
       loadbalancers = {
@@ -46,6 +47,7 @@
     includes = with den.aspects; [
       cilium
       cilium-bgp
+      coredns
       argocd
     ];
   };

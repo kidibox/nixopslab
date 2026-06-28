@@ -41,6 +41,7 @@ in
           "--flannel-backend=none"
           "--disable-network-policy"
           "--disable-kube-proxy"
+          "--disable=coredns"
           "--cluster-cidr=${podCIDR}"
           "--service-cidr=${serviceCIDR}"
         ];
