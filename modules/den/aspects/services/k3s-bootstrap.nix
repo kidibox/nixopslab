@@ -145,7 +145,7 @@
                   sleep 5
                 done
 
-                if kubectl get deployment -n argocd argocd-server >/dev/null 2>&1; then
+                if kubectl get statefulset -n argocd argocd-application-controller >/dev/null 2>&1; then
                   echo "ArgoCD already installed, skipping bootstrap."
                   exit 0
                 fi
@@ -155,8 +155,8 @@
                   --server-side --force-conflicts --field-manager=argocd-controller \
                   -f ${argocdDir}
 
-                echo "Waiting for argocd-server rollout..."
-                kubectl rollout status -n argocd deployment/argocd-server --timeout=300s
+                echo "Waiting for argocd-application-controller rollout..."
+                kubectl rollout status -n argocd statefulset/argocd-application-controller --timeout=300s
 
                 echo "Applying self-managing Application..."
                 kubectl apply \
