@@ -29,7 +29,7 @@
     ];
 
     nixidy = {
-      repository = "https://github.com/kid/nixopslab.git";
+      repository = "https://github.com/kidibox/nixopslab.git";
       branch = "main";
       rootPath = "manifests/prod";
     };
