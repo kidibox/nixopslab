@@ -42,7 +42,7 @@
               ''
                 echo "==> Writing ${envName} manifests..."
                 mkdir -p "${targetDir}"
-                rsync -avL --delete "${pkg}/" "${targetDir}/"
+                rsync -avL --checksum --delete "${pkg}/" "${targetDir}/"
               ''
             ) envs
           );

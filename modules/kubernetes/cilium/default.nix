@@ -31,8 +31,7 @@
               k8sServiceHost = "localhost";
               k8sServicePort = 6443;
 
-              # Excludes pod CIDR from iptables masquerade even in tunnel mode,
-              # and anchors BPF routing decisions to the correct range.
+              routingMode = "native";
               ipv4NativeRoutingCIDR = podCIDR;
 
               # cluster-pool: Cilium owns the CIDR allocation, no race with
