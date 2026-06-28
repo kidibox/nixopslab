@@ -3,17 +3,19 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/component: repo-server
-    app.kubernetes.io/instance: argocd
     app.kubernetes.io/name: argocd-repo-server
     app.kubernetes.io/part-of: argocd
   name: argocd-repo-server
   namespace: argocd
 spec:
   ports:
-    - name: tcp-repo-server
+    - name: server
       port: 8081
       protocol: TCP
-      targetPort: repo-server
+      targetPort: 8081
+    - name: metrics
+      port: 8084
+      protocol: TCP
+      targetPort: 8084
   selector:
-    app.kubernetes.io/instance: argocd
     app.kubernetes.io/name: argocd-repo-server

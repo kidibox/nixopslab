@@ -24,6 +24,8 @@ data:
   cilium-endpoint-gc-interval: 5m0s
   cluster-id: "0"
   cluster-name: default
+  cluster-pool-ipv4-cidr: 172.40.0.0/16
+  cluster-pool-ipv4-mask-size: "24"
   clustermesh-cache-ttl: 0s
   clustermesh-enable-endpoint-sync: "false"
   clustermesh-enable-mcs-api: "false"
@@ -43,6 +45,7 @@ data:
   enable-bgp-control-plane-status-report: "true"
   enable-bgp-legacy-origin-attribute: "false"
   enable-bpf-clock-probe: "false"
+  enable-bpf-masquerade: "true"
   enable-drift-checker: "true"
   enable-dynamic-config: "true"
   enable-endpoint-health-checking: "true"
@@ -87,9 +90,10 @@ data:
   identity-heartbeat-timeout: 30m0s
   identity-management-mode: agent
   install-no-conntrack-iptables-rules: "false"
-  ipam: kubernetes
+  ipam: cluster-pool
   ipam-cilium-node-update-rate: 15s
   iptables-random-fully: "false"
+  ipv4-native-routing-cidr: 172.40.0.0/16
   k8s-require-ipv4-pod-cidr: "false"
   k8s-require-ipv6-pod-cidr: "false"
   kube-proxy-replacement: "true"
