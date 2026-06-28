@@ -37,8 +37,7 @@ in
                 owner = "argoproj";
                 repo = "argo-cd";
                 rev = "v3.4.4";
-                hash = "sha256-GaY4Cw/LlSwy35umbB4epXt6ev8ya19UjHRwhDwilqU=";
-                # hash = lib.fakeSha256;
+                hash = "sha256-I3udVhmPpOA2Lf1mkJqG+d+mGpfM16HIKBkEnTiAw0c=";
               };
               path = "manifests/core-install";
             };
